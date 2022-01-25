@@ -1,0 +1,1 @@
+Hello World! Writen from inside Node.js
