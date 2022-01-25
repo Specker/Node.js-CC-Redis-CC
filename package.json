@@ -7,17 +7,10 @@
     "start": "node index",
     "dev": "nodemon index"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Specker/NodeJS-CrashCourse.git"
-  },
   "author": "Miłosz Giera",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Specker/NodeJS-CrashCourse/issues"
-  },
-  "homepage": "https://github.com/Specker/NodeJS-CrashCourse#readme",
   "dependencies": {
+    "redis": "^4.0.2",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

@@ -1,96 +1,58 @@
-////////////////////////////////////////////////////////////////////////
-// const Person =require('./person');
-
-// const person = new Person('Miłosz', 'Giera', 24);
-
-// person.greeting();
-////////////////////////////////////////////////////////////////////////
-// const Logger = require('./logger')
-
-// const logger = new Logger();
-// logger.on('message',(data) => console.log(`Called Listener:`, data));
-
-// logger.log('Hello World!')
-// logger.log('Sup')
-// logger.log('Hemlo')
-////////////////////////////////////////////////////////////////////////
-const http = require('http');
-const path = require('path');
-const fs = require('fs');
+const redis = require('redis');
 
 const PORT = process.env.PORT || 5000;
 
-const server = http.createServer((req, res) => {
-    // if (req.url === '/') {
-    //     fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, content) => {
-    //         if (err) throw err;
-    //         res.writeHead(200, { 'Content-Type': 'text/html' });
-    //         res.end(content)
-    //     })
-    // }
-    // if (req.url === '/about') {
-    //     fs.readFile(path.join(__dirname, 'public', 'about.html'), (err, content) => {
-    //         if (err) throw err;
-    //         res.writeHead(200, { 'Content-Type': 'text/html' });
-    //         res.end(content)
-    //     })
-    // }
-    // //REST
-    // if (req.url === '/api/users') {
-    //     const users = [
-    //         { name: 'Thomas Anderson', age: 36 }, 
-    //         { name: 'John Doe', age: 666 }];
-    //     res.writeHead(200, { 'Content-Type': 'application/json' });
-    //     res.end(JSON.stringify(users));
-    // }
+(async () => {
+    const redisClient = redis.createClient({
+        url: 'redis://192.168.100.150:6379'
+    });
+    const subscriber = redisClient.duplicate();
+    const publisher = redisClient.duplicate();
+    redisClient.on('error', (err) => console.log('Redis Client Error: ', err));
 
-    // Build File Path
-    let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
-    // Extension
-    let extension = path.extname(filePath)
+    await redisClient.connect();
+    await subscriber.connect();
+    await publisher.connect();
+    // SET Operation
+    await redisClient.set('transactions', 123);
+    // GET Operation
+    console.log(await redisClient.get('transactions'));
+    // DELETE Operation
+    await redisClient.del('transactions');
 
-    // Initial Content Type
-    let contentType = 'text/html';
+    console.log(await redisClient.get('transactions'));
 
-    // Check extension
-    switch (extension) {
-        case '.js':
-            contentType = 'application/javascript';
-            break;
-        case '.css':
-            contentType = 'text/css';
-            break;
-        case '.json':
-            contentType = 'application/json';
-            break;
-        case '.png':
-            contentType = 'image/png';
-            break;
-        case '.jpg' :
-            contentType = 'image/jpg';
-            break;
-    }
+    // Increment Operation
+    redisClient.incr('counter')
+    console.log(await redisClient.get('counter'));
+    // Decrement Operation
+    redisClient.decr('counter')
+    console.log(await redisClient.get('counter'));
 
-    // ReadFile
-    fs.readFile(filePath, (err, content) => {
-        if (err){
-            if(err.code == 'ENOENT'){
-                // Page not found
-                fs.readFile(path.join(__dirname,'public', '404.html'), (err, content) => {
-                    if (err) throw err;
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(content);
-                })
-            } else {
-                // Server error
-                res.writeHead(500)
-                res.end(`Server Error: ${err.code}`);
-            }
-        } else {
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content);
-        }
-    })
-});
+    // TTL expiration Operation
+    redisClient.set("TTLtest", "It still exists", { EX: 10 });
+    console.log(await redisClient.get('TTLtest'));
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    // LISTS Operation
+    redisClient.del("ListTranstactions");
+    redisClient.rPush("ListTranstactions", ['t1', 't2', 't3', 't4']);
+    console.log(await redisClient.lRange('ListTranstactions', 0, -1));
+
+    redisClient.rPop("ListTranstactions");
+    console.log(await redisClient.lRange('ListTranstactions', 0, -1));
+
+    // HashMap
+    redisClient.hSet('transaction:1', ['transactionID', 1, 'type', 'PURCHASE', 'amount', 5]);
+    console.log(await redisClient.hGetAll('transaction:1'));
+    console.log(await redisClient.hGet('transaction:1', 'type'));
+
+    //Message Broker
+    await subscriber.subscribe('TestChannel', message => {
+        console.log(`There is new message in TestChannel: ${message}`);
+    });
+    await subscriber.pSubscribe('*', (message, channel) => {
+        console.log(`There is new message in ${channel}: ${message}`);
+    });
+
+    await publisher.publish('TestChannel', 'This Is a test message');
+})();
